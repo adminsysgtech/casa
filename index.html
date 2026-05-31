@@ -662,7 +662,7 @@ function gMes(m,a){return D.gastos.filter(g=>{const f=new Date(g.fecha+'T12:00:0
 function iMes(m,a){return D.ingresos.filter(i=>{const f=new Date(i.fecha+'T12:00:00');return f.getMonth()===m&&f.getFullYear()===a;});}
 
 // CACHE
-const CK='casa_v4_datos', CT='casa_v4_ts';
+const CK='casa_v5_datos', CT='casa_v5_ts';
 function guardarCache(){try{localStorage.setItem(CK,JSON.stringify(D));localStorage.setItem(CT,Date.now().toString());}catch(e){}}
 function cargarCache(){
   try{
@@ -757,32 +757,47 @@ async function fetchDatos(){
   D.presupuesto=r.presupuesto||{};D.config=r.config||{};
   if(D.config.nombre){const el=document.getElementById('sb-nombre');if(el)el.textContent=D.config.nombre;}
   guardarCache();
+  // Re-renderizar siempre con datos frescos
   const app=document.getElementById('app');
   if(app&&app.classList.contains('show')){
-    if(isMob()){renderMob('dashboard');if(pagMobActual!=='dashboard')renderMob(pagMobActual);}
-    else{renderDesk('dashboard');if(pagDeskActual!=='dashboard')renderDesk(pagDeskActual);}
+    if(isMob()){
+      renderMob('dashboard');
+      if(pagMobActual!=='dashboard')renderMob(pagMobActual);
+    }else{
+      renderDesk('dashboard');
+      if(pagDeskActual!=='dashboard')renderDesk(pagDeskActual);
+    }
   }
   se(true);
 }
 
 async function iniciarApp(){
   const tieneCache=cargarCache();
+  // Mostrar caché inmediatamente si existe (para que no se vea pantalla en blanco)
   if(tieneCache&&hayDatos()){
     ocultarLoading();
     if(isMob())renderMob('dashboard');else renderDesk('dashboard');
-    if(!cacheFresco()){
-      mostrarSyncMsg('⟳ Actualizando...');
-      try{await fetchDatos();mostrarSyncMsg('✓ Actualizado');setTimeout(ocultarSyncMsg,1500);}
-      catch(e){mostrarSyncMsg('Sin conexión — datos del caché');setTimeout(ocultarSyncMsg,2500);}
+  }
+  // SIEMPRE cargar datos frescos de Sheets
+  mostrarSyncMsg('⟳ Cargando datos...');
+  sb();
+  try{
+    if(!tieneCache) await api({action:'init'});
+    await fetchDatos();
+    mostrarSyncMsg('✓ Datos cargados');
+    setTimeout(ocultarSyncMsg,1500);
+    if(!tieneCache||!hayDatos()){
+      ocultarLoading();
+      if(isMob())renderMob('dashboard');else renderDesk('dashboard');
     }
-  } else {
-    sb();
-    try{
-      if(!tieneCache)await api({action:'init'});
-      await fetchDatos();
-    }catch(e){se(false);}
-    ocultarLoading();
-    if(isMob())renderMob('dashboard');else renderDesk('dashboard');
+  }catch(e){
+    se(false);
+    mostrarSyncMsg('Sin conexión — usando caché');
+    setTimeout(ocultarSyncMsg,2500);
+    if(!tieneCache||!hayDatos()){
+      ocultarLoading();
+      if(isMob())renderMob('dashboard');else renderDesk('dashboard');
+    }
   }
 }
 
